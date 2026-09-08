@@ -10,8 +10,11 @@ Example::
     ml.solve()
 """
 
+import json
 import multiprocessing as mp
 import warnings
+from importlib import import_module
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -19,7 +22,7 @@ from scipy.integrate import quad_vec
 
 from timflow.steady.aquifer import Aquifer, SimpleAquifer
 from timflow.steady.aquifer_parameters import param_3d, param_maq
-from timflow.steady.base_io import BaseIO
+from timflow.steady.base_io import BaseIO, store_input
 from timflow.steady.constant import ConstantStar
 from timflow.steady.plots import PlotSteady
 from timflow.version import check_tqdm_parallel
@@ -81,7 +84,50 @@ class Model(BaseIO):
 
         self.plots = PlotSteady(self)
 
+        self._obj_registry: list[dict[str, Any]] = []
+
         self.initialized = False
+
+    def to_json(self, filepath) -> None:
+        """
+        Write the constructor arguments to a JSON-file.
+
+        :param filepath: Filepath for the to be created JSON-file.
+        """
+        data = {}
+        i = 0
+        for item in self._obj_registry:
+            type_name:str = item["class"]
+            args: list[Any] = item.get("args", [])
+            kwargs: dict[str, Any] = item.get("kwargs", {})
+            module_name: str = ".".join(type_name.split(".")[:-1])
+            class_name: str = type_name.split(".")[-1]
+            module = import_module(module_name)
+            subclass = getattr(module, class_name)
+            data.update({f"object{i}": subclass.to_dict(args, kwargs)})
+            i += 1
+        print(data)
+        with open(filepath, "w") as f:
+            f.write(json.dumps(data, indent=4))
+
+    @classmethod
+    def from_json(cls, filepath):
+        """
+        Read the constructor arguments and potential addition attributes from a JSON-file.
+
+        :param filepath: Filepath to the to be created JSON-file.
+        """
+        cls._setup_model = None
+        with open(filepath, "r") as f:
+            data: dict = json.load(f)
+        for k, v in data.items():
+            if k == "object0":  # Model object is always first created.
+                obj = cls.from_dict(v)
+                continue
+            if "obj" not in locals():  # No model in json
+                raise ImportError("No main model found in the JSON-file.")
+            cls.from_dict(v)
+        return obj
 
     def initialize(self):
         # remove inhomogeneity elements (they are added again)
@@ -944,6 +990,7 @@ class Model(BaseIO):
         return self.plots.vcontour_stream_function(*args, **kwargs)
 
 
+@store_input
 class ModelMaq(Model):
     """Create a model by specifying a multi-aquifer sequence of aquifer-leaky layer.
 
@@ -995,6 +1042,7 @@ class ModelMaq(Model):
             ConstantStar(self, hstar, aq=self.aq)
 
 
+@store_input
 class Model3D(Model):
     """Create a multi-layer model object consisting of stacked aquifer layers.
 
@@ -1079,6 +1127,7 @@ class Model3D(Model):
             ConstantStar(self, hstar, aq=self.aq)
 
 
+@store_input
 class ModelXsection(Model):
     r"""Model for cross-section (2D vertical slice) problems.
 

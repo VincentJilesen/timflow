@@ -12,6 +12,7 @@ import warnings
 import matplotlib.pyplot as plt
 import numpy as np
 
+from timflow.steady.base_io import store_input
 from timflow.steady.element import Element
 from timflow.steady.equation import (
     DisvecDiffEquation,
@@ -195,7 +196,7 @@ class LineSink1D(LineSink1DBase, MscreenWellEquation):
     def setparams(self, sol):
         self.parameters[:, 0] = sol
 
-
+@store_input
 class River1D(LineSink1DBase, HeadEquation):
     """Create an infinitely long line-sink with a given head.
 

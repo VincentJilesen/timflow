@@ -1,81 +1,69 @@
+from __future__ import annotations
+
 import inspect
-import json
+from functools import wraps
+from importlib import import_module
+from typing import TYPE_CHECKING, TypeVar
 
 from numpy import array, ndarray
-from typing_extensions import Self
+
+if TYPE_CHECKING:
+    from timflow.steady import Model
+
+T = TypeVar("T")
+
+
+def store_input(cls: type[T]) -> type[T]:
+
+    original_init = cls.__init__
+
+    @wraps(original_init)
+    def new_init(self, *args, **kwargs) -> None:
+        original_init(self, *args, **kwargs)
+        
+        model_instance: Model | None
+        if "Model" in self.__class__.__name__:
+            model_instance = self
+        else:
+            if args != ():
+                model_instance = args[0]
+            else:
+                model_instance = kwargs.get("model", None)
+                if model_instance is None:
+                    model_instance = kwargs.get("ml")
+        if model_instance is not None:
+            model_instance._obj_registry.append(
+                {
+                    "class": f"{cls.__module__}.{cls.__qualname__}",
+                    "args": args,
+                    "kwargs": kwargs,
+                }
+            )
+
+        
+
+    cls.__init__ = new_init
+
+    return cls
 
 
 class BaseIO:
-    # Registry for all subclasses.
-    _class_registry = {}
-    # Registry for all created objects with their kwargs for storing.
-    _obj_registry = {}
-    # Registry for model instance for storing.
-    _model_registry = {}
-
-    def __init_subclass__(cls) -> None:
-        """Add the subclass to the registry on inheritance."""
-        cls._class_registry[cls.__name__] = cls
-
-    def __new__(cls, *args, **kwargs) -> Self:
-        """Add all newly created object to a registry if they are created directly.
-
-        :return: instance of the (sub)class
-        """
-        instance = super().__new__(cls)
-        frame = inspect.currentframe()
-        caller = frame.f_back
-        if caller.f_code.co_name == "<module>":
-            # If a new Model object create a new list before adding it.
-            if "Model" in str(cls.__name__):
-                m = f"model{len(cls._obj_registry)}"
-                cls._model_registry.update({instance: m})
-                cls._obj_registry.update({m: []})
-                cls._obj_registry[m].append((instance, args, kwargs))
-            # Other objects are added to the list of the model they have been
-            # added to.
-            else:
-                if args != ():
-                    m_inst = args[0]
-                else:
-                    m_inst = kwargs.get("model", None)
-                    if m_inst is None:
-                        m_inst = kwargs.get("ml")
-                cls._obj_registry[cls._model_registry[m_inst]].append(
-                    (instance, args, kwargs)
-                )
-        return instance
-
-    def to_json(self, filepath) -> None:
-        """
-        Write the constructor arguments to a JSON-file.
-
-        :param filepath: Filepath for the to be created JSON-file.
-        """
-        data = {}
-        i = 0
-        for item in self._obj_registry[self._model_registry[self]]:
-            obj, args, kwargs = item
-            data.update({f"object{i}": obj.to_dict(args, kwargs)})
-            i += 1
-        with open(filepath, "w") as f:
-            f.write(json.dumps(data, indent=4))
-
-    def to_dict(self, args, kwargs):
+    @classmethod
+    def to_dict(cls, args, kwargs):
         """
         Collect the constructor arguments into a dict.
 
         :return: Dict with the arguments.
         """
-        sig = inspect.signature(self.__init__)
-        bound = sig.bind(*args, **kwargs)
+        sig = inspect.signature(cls.__init__)
+        bound = sig.bind(cls, *args, **kwargs)
         # Reference to class for recreation
-        data = {"_type": self.__class__.__name__}
+        data = {"_type": f"{cls.__module__}.{cls.__qualname__}"}
         data.update(
             {
-                k: self._serialize(v)
+                k: cls._serialize(v)
                 for k, v in bound.arguments.items()
-                if k not in ("model", "ml")
+                if k not in ("model", "ml", "self")
             }
         )
         return data
@@ -91,28 +79,11 @@ class BaseIO:
             return [cls._serialize(v) for v in value]
         if isinstance(value, dict):
             return {k: cls._serialize(v) for k, v in value.items()}
+        if isinstance(value, tuple):
+            return {"tuple": [cls._serialize(v) for v in value]}
         if isinstance(value, ndarray):
             return {"ndarray": value.tolist()}
         return value
-
-    @classmethod
-    def from_json(cls, filepath):
-        """
-        Read the constructor arguments and potential addition attributes from a JSON-file.
-
-        :param filepath: Filepath to the to be created JSON-file.
-        """
-        cls._setup_model = None
-        with open(filepath, "r") as f:
-            data: dict = json.load(f)
-        for k, v in data.items():
-            if k == "object0":  # Model object is always first created.
-                obj = cls.from_dict(v)
-                continue
-            if "obj" not in locals():  # No model in json
-                raise ImportError("No main model found in the JSON-file.")
-            cls.from_dict(v)
-        return obj
 
     @classmethod
     def from_dict(cls, data: dict):
@@ -122,7 +93,10 @@ class BaseIO:
         :return: Instance of this (sub)class.
         """
         type_name: str = data["_type"]
-        subclass = cls._class_registry[type_name]
+        module_name = ".".join(type_name.split(".")[:-1])
+        class_name = type_name.split(".")[-1]
+        module = import_module(module_name)
+        subclass = getattr(module, class_name)
         sig = inspect.signature(subclass.__init__)
         constructor_args = {}
 
@@ -147,6 +121,8 @@ class BaseIO:
             return cls.from_dict(value)
         if isinstance(value, dict) and "ndarray" in value:
             return array(value["ndarray"])
+        if isinstance(value, dict) and "tuple" in value:
+            return tuple(cls._deserialize(v) for v in value["tuple"])
         if isinstance(value, list):
             return [cls._deserialize(v) for v in value]
         if isinstance(value, dict):
