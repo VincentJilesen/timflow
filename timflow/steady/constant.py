@@ -10,6 +10,7 @@ Example::
 
 import numpy as np
 
+from timflow.steady.base_io import store_input
 from timflow.steady.element import Element
 from timflow.steady.equation import PotentialEquation
 
@@ -72,6 +73,7 @@ class ConstantBase(Element, PotentialEquation):
         return rv
 
 
+@store_input
 class Constant(ConstantBase, PotentialEquation):
     """Specify the head at one point in the model in one layer.
 
@@ -179,6 +181,7 @@ class ConstantInside(Element):
 
 # class ConstantStar(Element, PotentialEquation):
 # I don't think we need the equation
+@store_input
 class ConstantStar(Element):
     """Constant representing the particular solution inside a semi-confined aquifer.
 

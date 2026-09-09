@@ -106,7 +106,7 @@ class Model(BaseIO):
             subclass = getattr(module, class_name)
             data.update({f"object{i}": subclass.to_dict(args, kwargs)})
             i += 1
-        print(data)
+        
         with open(filepath, "w") as f:
             f.write(json.dumps(data, indent=4))
 

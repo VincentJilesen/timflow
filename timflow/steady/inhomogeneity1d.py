@@ -17,6 +17,7 @@ import numpy as np
 
 from timflow.steady.aquifer import AquiferData
 from timflow.steady.aquifer_parameters import param_3d, param_maq
+from timflow.steady.base_io import store_input
 from timflow.steady.constant import ConstantStar
 from timflow.steady.linesink1d import FluxDiffLineSink1D, HeadDiffLineSink1D
 from timflow.steady.stripareasink import XsectionAreaSinkInhom
@@ -326,6 +327,7 @@ class Xsection(AquiferData):
         return ax
 
 
+@store_input
 class XsectionMaq(Xsection):
     """Cross-section inhomogeneity for a multi-aquifer sequence.
 
@@ -396,6 +398,7 @@ class XsectionMaq(Xsection):
         )
 
 
+@store_input
 class Xsection3D(Xsection):
     """Cross-section inhomogeneity consisting of stacked aquifer layers.
 
@@ -489,6 +492,7 @@ class StripInhom(Xsection):
         super().__init__(model, x1, x2, kaq, c, z, npor, ltype, hstar, N, name=name)
 
 
+@store_input
 class StripInhomMaq(XsectionMaq):
     def __init__(
         self,
@@ -512,6 +516,7 @@ class StripInhomMaq(XsectionMaq):
         super().__init__(model, x1, x2, kaq, z, c, npor, topboundary, hstar, N, name)
 
 
+@store_input
 class StripInhom3D(Xsection3D):
     def __init__(
         self,

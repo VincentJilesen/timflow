@@ -20,7 +20,7 @@ def store_input(cls: type[T]) -> type[T]:
     @wraps(original_init)
     def new_init(self, *args, **kwargs) -> None:
         original_init(self, *args, **kwargs)
-        
+
         model_instance: Model | None
         if "Model" in self.__class__.__name__:
             model_instance = self
@@ -39,8 +39,6 @@ def store_input(cls: type[T]) -> type[T]:
                     "kwargs": kwargs,
                 }
             )
-
-        
 
     cls.__init__ = new_init
 

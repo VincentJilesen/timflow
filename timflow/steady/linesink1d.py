@@ -137,6 +137,7 @@ class LineSink1DBase(Element):
             )
 
 
+@store_input
 class LineSink1D(LineSink1DBase, MscreenWellEquation):
     """Create an infinitely long line-sink with a given discharge per unit length.
 
@@ -251,6 +252,7 @@ class River1D(LineSink1DBase, HeadEquation):
         self.parameters[:, 0] = sol
 
 
+@store_input
 class HeadLineSink1D(River1D):
     """Deprecated alias for :class:`.River1D`.
 
