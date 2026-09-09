@@ -181,7 +181,7 @@ class ConstantInside(Element):
 
 # class ConstantStar(Element, PotentialEquation):
 # I don't think we need the equation
-@store_input
+# @store_input
 class ConstantStar(Element):
     """Constant representing the particular solution inside a semi-confined aquifer.
 

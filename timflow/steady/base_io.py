@@ -28,10 +28,15 @@ def store_input(cls: type[T]) -> type[T]:
             if args != ():
                 model_instance = args[0]
             else:
-                model_instance = kwargs.get("model", None)
+                model_instance = kwargs.pop("model", None)  # remove model ref
                 if model_instance is None:
-                    model_instance = kwargs.get("ml")
+                    model_instance = kwargs.pop("ml", None)  # remove model ref
         if model_instance is not None:
+            # Prevent the reference to the model object from being stored
+            # this is unused and might complicate pickling.
+            if len(args) != 0:
+                args = args[1:] # model ref always first posarg
+                
             model_instance._obj_registry.append(
                 {
                     "class": f"{cls.__module__}.{cls.__qualname__}",
@@ -47,13 +52,16 @@ def store_input(cls: type[T]) -> type[T]:
 
 class BaseIO:
     @classmethod
-    def to_dict(cls, args, kwargs):
+    def to_dict(cls, args: tuple, kwargs: dict):
         """
         Collect the constructor arguments into a dict.
 
         :return: Dict with the arguments.
         """
         sig = inspect.signature(cls.__init__)
+        if "Model" not in cls.__name__:
+            if "model" not in kwargs or "ml" not in kwargs:
+                args = args + ("model dummy",)  # add dummy for sig.bind
         bound = sig.bind(cls, *args, **kwargs)
         # Reference to class for recreation
         data = {"_type": f"{cls.__module__}.{cls.__qualname__}"}
